@@ -59,20 +59,58 @@ module Minus5
         row[row.keys[0]]
       end
 
-      def select(sql)
-        rows = execute(sql).each
-        rows.size == 1 ? rows[0] : rows
+      def select(options)
+        if options.kind_of?(String)
+          rows = execute(options).each
+          rows.size == 1 ? rows[0] : rows
+        else
+          options = {:primary_key=>:id, :returns=>:array}.merge(options)
+          results = execute(options[:sql]).each(:symbolize_keys=>true)
+          data = {} #parent indexed by primary_key
+          results[0].each{ |row| data[row[options[:primary_key]]] = row }
+          options[:relations].each_with_index do |relation, index|
+            result = results[index+1] #child result
+            result.each do |row|
+              #find parent row by foreign key and insert child row in collection
+              data_row = data[row[relation[:foreign_key]]]
+              next unless data_row
+              if relation[:type] == :one_to_many
+               data_row[relation[:name]] = [] unless data_row[relation[:name]]
+                data_row[relation[:name]] << row
+              elsif relation[:type] == :one_to_one
+                #merge child row with parent
+                if relation[:name]
+                  data_row[relation[:name]] = row
+                else                
+                  data_row.merge!(row.reject{|key, value| key == relation[:foreign_key]})
+                end
+              end
+            end
+          end
+          options[:return_hash] ? data : results[0]
+        end
       end
 
+      def create_table(schema, table, columns_def)
+        execute <<-SQL
+          if not exists(select * 
+                          from sys.tables 
+                          inner join sys.schemas on tables.schema_id = schemas.schema_id 
+                          where 
+                            tables.name = '#{table}' 
+                            and schemas.name = '#{schema}')
+            create table #{schema}.#{table} (#{columns_def})
+        SQL
+      end
       private
 
       def connect
-        print "connecting to #{@params[:host]} "
+        #print "connecting to #{@params[:host]} "
         @connection = TinyTds::Client.new(@params)
-        print "successful\n"
+        #print "successful\n"
       rescue TinyTds::Error => e
-        print "#{e.to_s}\n"
-        throw unless @params[:mirror_host]
+        raise unless @params[:mirror_host]
+        #print "#{e.to_s}\n"
         to_mirror
         connect
       end
@@ -89,10 +127,10 @@ module Minus5
       # Returns array of table column names or stored procedure param
       def get_params(name)
         @params_cache[name] ||=
-        begin
-          sql = "select name from sys.syscolumns where id = object_id('#{name}')"
-          @connection.execute(sql).each.map{|row| row["name"]}
-        end
+          begin
+            sql = "select name from sys.syscolumns where id = object_id('#{name}')"
+            @connection.execute(sql).each.map{|row| row["name"]}
+          end
       end
 
       def hash_to_values(columns, data)
