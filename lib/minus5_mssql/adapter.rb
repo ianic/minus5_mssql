@@ -71,6 +71,7 @@ module Minus5
         else
           options = {:primary_key=>:id}.merge(options)
           results = execute(options[:sql]).each(:symbolize_keys=>true)
+          return [] if results.size == 0
           return results if results[0].kind_of?(Hash)
           data = {} #parent indexed by primary_key
           results[0].each{ |row| data[row[options[:primary_key]]] = row }
