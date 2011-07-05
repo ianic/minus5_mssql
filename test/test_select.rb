@@ -10,7 +10,27 @@ class Select < Test::Unit::TestCase
                                          :host => "mssql",
                                          :database => "minus5_mssql_tests"}) 
     create_tables
- end
+  end
+
+  def test_select_value
+    assert_equal 1, @reader.select_value("select 1")
+    assert_equal 1, @reader.select_value("select 1, 2")
+    assert_equal 1, @reader.select_value("select 1\nunion\nselect 2")
+    assert_equal 1, @reader.select_value("select 1; select 2")
+    assert_nil @reader.select_value("set nocount on")
+  end
+
+  def test_select_values
+    assert_equal [1,2], @reader.select_values("select 1, 11\nunion\nselect 2, 22")
+    assert_equal [1,2], @reader.select_values("select 1, 11\nunion\nselect 2, 22; select 3, 3")
+    assert_equal [], @reader.select_values("set nocount on")
+  end
+  
+  def test_select_simple
+    assert_equal([{:first => 1, :second => 2}], @reader.select("select 1 first, 2 second"))
+    assert_equal([{:first => 1, :second => 2}], @reader.select(:sql=>"select 1 first, 2 second"))
+    assert_equal [], @reader.select("set nocount on")
+  end
 
   def test_get_params
     columns = @reader.send(:get_params, 'people')

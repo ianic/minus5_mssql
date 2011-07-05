@@ -53,19 +53,25 @@ module Minus5
 
       # Returns results first column of the first row.
       def select_value(sql)
-        rows = execute(sql).each
-        return nil if rows.size == 0
-        row = rows[0]
-        row[row.keys[0]]
+        rows = execute(sql).each(:as=>:array)
+        return if rows.size == 0
+        rows[0][0].kind_of?(Array) ? rows[0][0][0] : rows[0][0]
+      end
+      
+      # Returns array of the values from the first column of all returned rows 
+      def select_values(sql)
+        rows = execute(sql).each(:as=>:array)
+        return [] if rows.size == 0
+        (rows[0][0].kind_of?(Array) ? rows[0] : rows).map{|row| row[0] }        
       end
 
       def select(options)
         if options.kind_of?(String)
-          rows = execute(options).each
-          rows.size == 1 ? rows[0] : rows
+          execute(options).each(:symbolize_keys=>true)
         else
-          options = {:primary_key=>:id, :returns=>:array}.merge(options)
+          options = {:primary_key=>:id}.merge(options)
           results = execute(options[:sql]).each(:symbolize_keys=>true)
+          return results if results[0].kind_of?(Hash)
           data = {} #parent indexed by primary_key
           results[0].each{ |row| data[row[options[:primary_key]]] = row }
           options[:relations].each_with_index do |relation, index|
@@ -94,11 +100,11 @@ module Minus5
       def create_table(schema, table, columns_def)
         execute <<-SQL
           if not exists(select * 
-                          from sys.tables 
-                          inner join sys.schemas on tables.schema_id = schemas.schema_id 
-                          where 
-                            tables.name = '#{table}' 
-                            and schemas.name = '#{schema}')
+                        from sys.tables 
+                        inner join sys.schemas on tables.schema_id = schemas.schema_id 
+                        where 
+                          tables.name = '#{table}' 
+                          and schemas.name = '#{schema}')
             create table #{schema}.#{table} (#{columns_def})
         SQL
       end
