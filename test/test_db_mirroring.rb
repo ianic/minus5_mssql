@@ -44,13 +44,16 @@ class DbMirroring < Test::Unit::TestCase
     end
   end
 
-  def test_read
+  def test_mirror_failovering
     rows = @reader.read
+    first_server = server_name
     data_test rows
-    pp rows
     @reader.failover
     rows = @reader.read
+    second_server = server_name
     data_test rows
+    assert second_server != first_server
+    print "\nfailovering from #{first_server} to #{second_server}\n"
   end
 
   def data_test(rows)
@@ -60,6 +63,10 @@ class DbMirroring < Test::Unit::TestCase
   end
 
   private
+
+  def server_name
+    @reader.select_value "select @@servername"
+  end
 
   def setup_table
     @reader.execute "

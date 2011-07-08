@@ -46,7 +46,6 @@ module Minus5
       def execute(sql)
         @connection.execute(sql)
       rescue TinyTds::Error => e
-        print "execute error #{e}\n"
         connect
         execute(sql)
       end
@@ -109,21 +108,42 @@ module Minus5
             create table #{schema}.#{table} (#{columns_def})
         SQL
       end
-      private
 
+      def host
+        return @params[:host]
+      end
+      private
+      
       def connect
-        #print "connecting to #{@params[:host]} "
+        if mirror_defined? 
+          unless (connect! rescue false)
+            to_mirror 
+            connect!
+          end
+        else
+          connect!
+        end
+      end
+
+      #raises error on failed connection
+      def connect!
         @connection = TinyTds::Client.new(@params)
-        #print "successful\n"
-      rescue TinyTds::Error => e
-        raise unless @params[:mirror_host]
-        #print "#{e.to_s}\n"
-        to_mirror
-        connect
+        on_connect
+        true
+      end
+
+      def on_connect
+        execute "set ANSI_NULLS on"
+        execute "set ANSI_WARNINGS on"
+      end
+
+      def mirror_defined?
+        !@params[:mirror_host].nil?
       end
 
       # Switch host and mirror_host in @params
       def to_mirror
+        return unless mirror_defined?
         host = @params[:host]
         @params[:host] = @params[:mirror_host]
         @params[:mirror_host] = host
