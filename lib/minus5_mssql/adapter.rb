@@ -7,18 +7,31 @@ module Minus5
       # params - tiny_tds connection params: https://github.com/rails-sqlserver/tiny_tds
       # with additon of mirror_host
       # Example:
-      #    SqlBase.new({  :username    => "rails",
+      #    Adapter.new({  :username    => "rails",
       #                   :password    => "",
       #                   :host        => "bedem",
       #                   :mirror_host => "mssql",
       #                   :database    => "activerecord_unittest_mirroring"
       #                })
       def initialize(params)
-        params = YAML.load_file(params).symbolize_keys if params.kind_of?(String)
-        @params = params
+        load_params params
         @params_cache = {}
         connect
       end
+  
+      private
+
+      #FIXME stavio samo ovo de na moram load-at active_resource, a i ne znam koji bi 
+      #al malo mi je glupasto da uvijek pisam ovu metodu
+      def load_params(params)
+        params = YAML.load_file(params) if params.kind_of?(String)
+        @params = {}
+        params.to_hash.each do |key, value|
+          @params[key.to_sym] = value
+        end
+      end
+
+      public
 
       # Insert row into table_name.
       # Data is hash {column_name => value, ...}
@@ -71,15 +84,17 @@ module Minus5
           options = {:primary_key=>:id}.merge(options)
           results = execute(options[:sql]).each(:symbolize_keys=>true)
           return [] if results.size == 0
-          return results if results[0].kind_of?(Hash)
+          return results if results[0].kind_of?(Hash)          
           data = {} #parent indexed by primary_key
           results[0].each{ |row| data[row[options[:primary_key]]] = row }
           options[:relations].each_with_index do |relation, index|
             result = results[index+1] #child result
             result.each do |row|
               #find parent row by foreign key and insert child row in collection
-              data_row = data[row[relation[:foreign_key]]]
-              next unless data_row
+              key = row[relation[:foreign_key]]
+              raise "key is nil, in #{row.inspect}" if key.nil?
+              data_row = data[key]
+              raise "parent row not found, for key #{key}" unless data_row
               if relation[:type] == :one_to_many
                data_row[relation[:name]] = [] unless data_row[relation[:name]]
                 data_row[relation[:name]] << row
