@@ -90,6 +90,20 @@ class Select < Test::Unit::TestCase
     assert result[0][:sum].kind_of?(Hash)
   end
 
+
+  def test_convert_types
+    result = @reader.select("select * from orders")   
+    assert_equal Fixnum, result[0][:id].class
+    assert_equal Time, result[0][:created].class
+    assert_equal BigDecimal, result[0][:amount].class
+  end
+
+  def test_date_time_problem
+    db_time = @reader.select("select * from orders")[0][:created]
+    assert db_time < Time.now 
+    assert db_time > Time.now - 60
+  end
+
   private 
 
   def create_tables

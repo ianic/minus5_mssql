@@ -8,7 +8,7 @@ GEMSPEC = Gem::Specification.new do |spec|
   spec.author = 'Igor Anic'
   spec.email = 'ianic@minus5.hr'
 
-  spec.add_dependency('tiny_tds', '~> 0.4.5')
+  spec.add_dependency('tiny_tds', '~> 0.5.0')
 
   spec.files = FileList['lib/*', 'lib/**/*', 'tasks/*' , 'bin/*', 'test/*','test/**/*', 'Rakefile'].to_a
 
