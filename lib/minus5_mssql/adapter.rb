@@ -18,7 +18,7 @@ module Minus5
         @params_cache = {}
         connect
       end
-  
+      
       private
 
       #FIXME stavio samo ovo de na moram load-at active_resource, a i ne znam koji bi 
@@ -81,35 +81,39 @@ module Minus5
         if options.kind_of?(String)
           execute(options).each(:symbolize_keys=>true)
         else
-          options = {:primary_key=>:id}.merge(options)
           results = execute(options[:sql]).each(:symbolize_keys=>true)
-          return [] if results.size == 0
-          return results if results[0].kind_of?(Hash)          
-          data = {} #parent indexed by primary_key
-          results[0].each{ |row| data[row[options[:primary_key]]] = row }
-          options[:relations].each_with_index do |relation, index|
-            result = results[index+1] #child result
-            result.each do |row|
-              #find parent row by foreign key and insert child row in collection
-              key = row[relation[:foreign_key]]
-              raise "key is nil, in #{row.inspect}" if key.nil?
-              data_row = data[key]
-              raise "parent row not found, for key #{key}" unless data_row
-              if relation[:type] == :one_to_many
-               data_row[relation[:name]] = [] unless data_row[relation[:name]]
-                data_row[relation[:name]] << row
-              elsif relation[:type] == :one_to_one
-                #merge child row with parent
-                if relation[:name]
-                  data_row[relation[:name]] = row
-                else                
-                  data_row.merge!(row.reject{|key, value| key == relation[:foreign_key]})
-                end
+          parse_relations(results, options)
+        end
+      end
+
+      def parse_relations(results, options)
+        options = {:primary_key=>:id}.merge(options)
+        return [] if results.size == 0
+        return results if results[0].kind_of?(Hash)          
+        data = {} #parent indexed by primary_key
+        results[0].each{ |row| data[row[options[:primary_key]]] = row }
+        options[:relations].each_with_index do |relation, index|
+          result = results[index+1] #child result
+          result.each do |row|
+            #find parent row by foreign key and insert child row in collection
+            key = row[relation[:foreign_key]]
+            raise "key is nil, in #{row.inspect}" if key.nil?
+            data_row = data[key]
+            raise "parent row not found, for key #{key}" unless data_row
+            if relation[:type] == :one_to_many
+              data_row[relation[:name]] = [] unless data_row[relation[:name]]
+              data_row[relation[:name]] << row
+            elsif relation[:type] == :one_to_one
+              #merge child row with parent
+              if relation[:name]
+                data_row[relation[:name]] = row
+              else                
+                data_row.merge!(row.reject{|key, value| key == relation[:foreign_key]})
               end
             end
           end
-          options[:return_hash] ? data : results[0]
         end
+        options[:return_hash] ? data : results[0]
       end
 
       def create_table(schema, table, columns_def)
